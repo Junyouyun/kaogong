@@ -81,7 +81,7 @@ async function api(path, options = {}) {
       const data = await response.json();
       message = data.detail || message;
     } catch {}
-    if (response.status === 401) showAuth("登录已失效，请重新登录。");
+    if (response.status === 401) showAuth("登录已失效，请重新登录。", "login");
     throw new Error(message);
   }
   return response.json();
@@ -102,14 +102,18 @@ async function loadAuthStatus() {
     state.user = state.auth.user;
     await enterApp();
   } else {
-    showAuth();
+    showAuth("", state.auth.initialized ? "login" : "register");
   }
 }
 
-function showAuth(copy = "") {
+function showAuth(copy = "", forcedMode = null) {
   el("app-shell").classList.add("hidden");
   el("auth-screen").classList.remove("hidden");
-  state.authMode = state.auth?.initialized ? "login" : "register";
+  if (forcedMode) {
+    state.authMode = forcedMode;
+  } else if (!state.auth?.initialized) {
+    state.authMode = "register";
+  }
   el("auth-copy").textContent =
     copy ||
     (state.authMode === "register"
@@ -178,8 +182,10 @@ async function logout() {
   clearTimer();
   state.session = null;
   state.question = null;
-  state.auth = { ...(state.auth || {}), authenticated: false, user: null };
-  showAuth("已经退出登录。");
+  const response = await fetch("/api/auth/status");
+  state.auth = await response.json();
+  state.user = null;
+  showAuth("已经退出登录。", "login");
 }
 
 function renderStats(summary) {

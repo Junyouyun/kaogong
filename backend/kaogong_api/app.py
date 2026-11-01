@@ -80,7 +80,7 @@ class InviteCreateRequest(BaseModel):
     expires_days: int = Field(default=7, ge=1, le=30)
 
 
-app = FastAPI(title="Kaogong API", version="0.2.0")
+app = FastAPI(title="Kaogong API", version="0.3.0")
 
 
 def utc_now() -> str:
