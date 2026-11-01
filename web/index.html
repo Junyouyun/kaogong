@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>公考智练</title>
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+  <section id="auth-screen" class="auth-screen">
+    <form id="auth-form" class="auth-card">
+      <p class="eyebrow">PRIVATE STUDY WORKSPACE</p>
+      <h1>公考智练</h1>
+      <p class="auth-copy" id="auth-copy">正在检查登录状态……</p>
+      <label>
+        用户名
+        <input id="auth-username" autocomplete="username" minlength="3" maxlength="32" required>
+      </label>
+      <label>
+        密码
+        <input id="auth-password" type="password" autocomplete="current-password" minlength="8" maxlength="128" required>
+      </label>
+      <label id="invite-row" class="hidden">
+        邀请码
+        <input id="auth-invite" autocomplete="off">
+      </label>
+      <button type="submit" class="primary" id="auth-submit">继续</button>
+      <button type="button" class="ghost hidden" id="auth-switch-mode">创建其他账号</button>
+      <p class="form-error" id="auth-error" role="alert"></p>
+    </form>
+  </section>
+
+  <div id="app-shell" class="app-shell hidden">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">KAOGONG LAB</p>
+        <h1>公考智练</h1>
+      </div>
+      <div class="account">
+        <div class="stats" id="stats">
+          <span>正在加载学习数据</span>
+          <strong>—</strong>
+        </div>
+        <button id="logout-button" class="ghost">退出登录</button>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <div class="subject-switch" role="tablist">
+          <button class="active" data-subject="xingce">行测</button>
+          <button data-subject="shenlun">申论</button>
+        </div>
+
+        <div class="view-switch">
+          <button class="active" data-view="random">随机练习</button>
+          <button data-view="papers">整卷</button>
+          <button data-view="wrongbook">错题本</button>
+        </div>
+
+        <div id="filters">
+          <label>
+            模块
+            <select id="module-filter"><option value="">全部模块</option></select>
+          </label>
+          <label>
+            地区
+            <select id="region-filter"><option value="">全部地区</option></select>
+          </label>
+          <label>
+            年份
+            <select id="year-filter"><option value="">全部年份</option></select>
+          </label>
+        </div>
+
+        <button id="main-action" class="primary">开始随机练习</button>
+        <button id="leave-session" class="secondary hidden">退出当前试卷</button>
+        <p class="hint">仅限已授权用户使用。题库内容版权归原始来源方。</p>
+      </aside>
+
+      <section class="workspace">
+        <div id="empty-state" class="empty">
+          <p class="eyebrow">READY WHEN YOU ARE</p>
+          <h2>选择范围，开始训练。</h2>
+          <p>可以随机练习、按整卷模拟考试，或集中复盘错题。</p>
+        </div>
+
+        <section id="paper-list" class="paper-list hidden">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">PAPER PRACTICE</p>
+              <h2>选择试卷</h2>
+            </div>
+            <span id="paper-count" class="muted"></span>
+          </div>
+          <div id="paper-items" class="paper-grid"></div>
+        </section>
+
+        <section id="wrongbook-list" class="paper-list hidden">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">WRONG BOOK</p>
+              <h2>待复盘错题</h2>
+            </div>
+            <span id="wrongbook-count" class="muted"></span>
+          </div>
+          <div id="wrongbook-items" class="paper-grid"></div>
+        </section>
+
+        <article id="question-card" class="question-card hidden">
+          <div class="session-bar hidden" id="session-bar">
+            <span id="session-progress"></span>
+            <strong id="session-timer">--:--</strong>
+          </div>
+          <div class="question-meta" id="question-meta"></div>
+          <div class="passage hidden" id="passage"></div>
+          <div class="stem" id="stem"></div>
+          <form id="answer-form">
+            <div id="options" class="options"></div>
+            <textarea id="free-answer" class="free-answer hidden" placeholder="在这里作答……"></textarea>
+            <div class="actions">
+              <button type="submit" class="primary" id="submit-button">提交答案</button>
+              <button type="button" class="secondary hidden" id="prev-question">上一题</button>
+              <button type="button" class="secondary hidden" id="next-question">下一题</button>
+              <button type="button" class="danger hidden" id="submit-paper">交卷</button>
+              <button type="button" class="secondary" id="next-button">换一题</button>
+            </div>
+          </form>
+          <section id="answer-result" class="answer-result hidden"></section>
+          <section id="materials" class="materials hidden"></section>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

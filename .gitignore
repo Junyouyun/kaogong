@@ -1,0 +1,14 @@
+# External question-bank fixtures are for local evaluation only.
+# Their repository licenses do not establish permission to redistribute the data.
+data/external/gongkao-naoku/
+data/external/errrc-kaogong-shuati/
+
+# Generated local question bank
+data/processed/
+
+__pycache__/
+*.py[cod]
+
+# Project-local SSH credentials
+.ssh/
+.secrets/

@@ -1,0 +1,73 @@
+{
+  "downloadedAt": "2026-11-01",
+  "usage": "local-evaluation-only",
+  "datasets": [
+    {
+      "name": "errrc-kaogong-shuati",
+      "repository": "https://github.com/ERRRC/kaogong-shuati",
+      "commit": "12cf8e73be8fd18f615782e7a5748b0ca7f39ce2",
+      "localPath": "data/external/errrc-kaogong-shuati",
+      "files": {
+        "tiku.db": {
+          "bytes": 318738432,
+          "sha256": "D95F557D297EE9099B293ABCAFB40D304C10EE3DE5F098E6804CE95470B937B4"
+        },
+        "materials.db": {
+          "bytes": 27873280,
+          "sha256": "8D7D525183829CD0546BFB44C7155BF6EAD9A0A3BDC240C1BCCE8EB83D2E6D48"
+        }
+      },
+      "content": {
+        "papers": 2455,
+        "questions": 95627,
+        "civilServiceExaminationPapers": 1633,
+        "civilServiceExaminationQuestions": 86128,
+        "civilServiceXingcePapers": 724,
+        "civilServiceXingceQuestions": 82670,
+        "civilServiceShenlunPapers": 909,
+        "civilServiceShenlunQuestions": 3458,
+        "shenlunPapersWithMaterials": 909,
+        "materials": 7733,
+        "civilServiceDistinctQuestionContent": 45298,
+        "xingceQuestionsMissingAnswer": 4
+      },
+      "licenseNote": "代码为 MIT；README 声明题库数据版权归粉笔等来源方，仅限个人学习备考，禁止商用或二次分发。该声明未被视为独立法律授权。"
+    },
+    {
+      "name": "gongkao-naoku",
+      "repository": "https://github.com/jangviktor-web/GongkaoNaoku",
+      "commit": "8ce742aa3513d1165625a471ac2f0b5298be248c",
+      "localPath": "data/external/gongkao-naoku",
+      "files": {
+        "kaogong.db": {
+          "bytes": 154710016,
+          "sha256": "43A52BE2CB6B004BE7F037CBE0B74C64CEFFFEF1022B7DA2769118FFF2284BF6"
+        }
+      },
+      "content": {
+        "deduplicatedQuestions": 27506,
+        "paperQuestionAppearances": 58890,
+        "materials": 1578,
+        "questionsWithImages": 10647,
+        "localImageFiles": 39692,
+        "localImageBytes": 91243518,
+        "uniqueImageReferences": 40290,
+        "missingLocalImageReferences": 2,
+        "xingceQuestionsMissingAnswer": 4
+      },
+      "licenseNote": "代码为 Apache-2.0；README 声明题库原题版权归原作者及原题库平台，仅供个人学习使用，不应公开传播。"
+    }
+  ],
+  "importPolicy": {
+    "allowLocalTesting": true,
+    "allowPublicRedistribution": false,
+    "allowCommercialUse": false,
+    "allowModelTraining": false,
+    "notes": [
+      "数据库必须保留来源、许可证状态和质量状态。",
+      "导入业务库时只保留公务员行测与申论，事业编数据默认排除。",
+      "读取的题库存放在 data/external 并加入 .gitignore，不提交到项目版本库。",
+      "公开运营前必须替换为自有、已授权或明确许可的数据。"
+    ]
+  }
+}
