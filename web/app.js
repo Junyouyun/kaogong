@@ -114,13 +114,20 @@ function showAuth(copy = "", forcedMode = null) {
   } else if (!state.auth?.initialized) {
     state.authMode = "register";
   }
+  const firstSetup = !state.auth?.initialized;
   el("auth-copy").textContent =
     copy ||
     (state.authMode === "register"
-      ? "首次使用，请创建管理员账号。"
-      : "请输入账号和密码。");
+      ? (firstSetup
+          ? "首次使用，请填写部署码创建管理员账号。"
+          : "请输入管理员提供的邀请码，创建普通用户账号。")
+      : "请输入用户名和密码登录。");
   el("auth-submit").textContent =
-    state.authMode === "register" ? "创建管理员账号" : "登录";
+    state.authMode === "login"
+      ? "登录"
+      : firstSetup
+        ? "创建管理员账号"
+        : "使用邀请码注册";
   el("invite-row").classList.toggle(
     "hidden",
     state.authMode !== "register" ||
