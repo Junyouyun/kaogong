@@ -166,6 +166,7 @@ async function submitAuth(event) {
 async function enterApp() {
   el("auth-screen").classList.add("hidden");
   el("app-shell").classList.remove("hidden");
+  el("admin-view-button").classList.toggle("hidden", !state.user?.is_admin);
   await Promise.all([loadFilters(), loadStats()]);
   setView("random");
 }
@@ -215,6 +216,7 @@ function hideWorkspace() {
   el("empty-state").classList.add("hidden");
   el("paper-list").classList.add("hidden");
   el("wrongbook-list").classList.add("hidden");
+  el("admin-panel").classList.add("hidden");
   el("question-card").classList.add("hidden");
 }
 
@@ -235,11 +237,88 @@ function setView(view) {
   } else if (view === "papers") {
     el("main-action").textContent = "筛选试卷";
     loadPapers();
+  } else if (view === "admin") {
+    if (!state.user?.is_admin) {
+      toast("需要管理员权限");
+      return;
+    }
+    el("main-action").classList.add("hidden");
+    loadAdmin();
   } else {
     el("main-action").textContent = "刷新错题";
     loadWrongbook();
   }
+  if (view !== "admin") el("main-action").classList.remove("hidden");
 }
+
+
+function formatTime(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN");
+}
+
+function inviteStatusLabel(status) {
+  return { active: "可使用", used: "已使用", expired: "已过期" }[status] || status;
+}
+
+async function loadAdmin() {
+  hideWorkspace();
+  el("admin-panel").classList.remove("hidden");
+  el("admin-users").innerHTML = '<p class="muted">正在加载……</p>';
+  try {
+    const [users, invites] = await Promise.all([
+      api("/api/admin/users"),
+      api("/api/admin/invites"),
+    ]);
+    el("admin-user-count").textContent = `${users.length} 个用户`;
+    el("admin-users").innerHTML = users.map((user) => `
+      <div class="admin-row">
+        <strong>${escapeHtml(user.username)} ${user.is_admin ? '<span class="badge">管理员</span>' : ""}</strong>
+        <span>完成 ${user.attempt_count} 题 · 错题 ${user.wrong_book_count}</span>
+        <small>${escapeHtml(formatTime(user.last_active_at))}</small>
+      </div>
+    `).join("");
+    el("admin-invites").innerHTML = invites.length
+      ? invites.map((invite) => `
+          <div class="admin-row">
+            <code>${escapeHtml(invite.code_prefix)}…</code>
+            <span><span class="invite-status ${invite.status}">${inviteStatusLabel(invite.status)}</span> 到期 ${escapeHtml(formatTime(invite.expires_at))}</span>
+            <span>${invite.used_by_name ? "使用者：" + escapeHtml(invite.used_by_name) : (invite.status === "active" ? `<button class="ghost" data-revoke-invite="${invite.id}">撤销</button>` : "")}</span>
+          </div>
+        `).join("")
+      : '<p class="muted">还没有生成过邀请码。</p>';
+  } catch (error) {
+    el("admin-users").innerHTML = `<p class="form-error">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+async function createInvite(event) {
+  event.preventDefault();
+  try {
+    const result = await api("/api/admin/invites", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ expires_days: Number(el("invite-expiry").value) }),
+    });
+    el("invite-created-code").textContent = result.code;
+    el("invite-created").classList.remove("hidden");
+    await loadAdmin();
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
+async function revokeInvite(inviteId) {
+  try {
+    await api(`/api/admin/invites/${inviteId}/revoke`, { method: "POST" });
+    await loadAdmin();
+    toast("邀请码已撤销");
+  } catch (error) {
+    toast(error.message);
+  }
+}
+
 
 async function loadPapers() {
   if (state.session) return;
@@ -696,10 +775,25 @@ el("prev-question").addEventListener("click", () => moveSession(-1));
 el("next-question").addEventListener("click", () => moveSession(1));
 el("submit-paper").addEventListener("click", () => submitPaper(false));
 el("leave-session").addEventListener("click", leaveSession);
+el("invite-form").addEventListener("submit", createInvite);
+el("copy-invite").addEventListener("click", async () => {
+  const code = el("invite-created-code").textContent;
+  if (!code) return;
+  try {
+    await navigator.clipboard.writeText(code);
+    toast("邀请码已复制");
+  } catch {
+    toast("请手动选择邀请码复制");
+  }
+});
 
 el("paper-items").addEventListener("click", (event) => {
   const button = event.target.closest("[data-start-paper]");
   if (button) startPaper(button.dataset.startPaper, button.dataset.mode);
+});
+el("admin-invites").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-revoke-invite]");
+  if (button) revokeInvite(button.dataset.revokeInvite);
 });
 el("wrongbook-items").addEventListener("click", (event) => {
   const retry = event.target.closest("[data-retry-wrong]");

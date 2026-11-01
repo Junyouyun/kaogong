@@ -76,6 +76,10 @@ class PracticeSessionRequest(BaseModel):
     duration_seconds: int | None = Field(default=None, ge=60, le=86400)
 
 
+class InviteCreateRequest(BaseModel):
+    expires_days: int = Field(default=7, ge=1, le=30)
+
+
 app = FastAPI(title="Kaogong API", version="0.2.0")
 
 
@@ -112,6 +116,7 @@ def ensure_user_db() -> None:
             id INTEGER PRIMARY KEY,
             username TEXT NOT NULL COLLATE NOCASE UNIQUE,
             password_hash TEXT NOT NULL,
+            is_admin INTEGER NOT NULL DEFAULT 0,
             created_at TEXT NOT NULL
         );
 
@@ -124,6 +129,20 @@ def ensure_user_db() -> None:
 
         CREATE INDEX IF NOT EXISTS idx_auth_sessions_user
             ON auth_sessions(user_id);
+
+        CREATE TABLE IF NOT EXISTS invite_codes (
+            id INTEGER PRIMARY KEY,
+            code_hash TEXT NOT NULL UNIQUE,
+            code_prefix TEXT NOT NULL,
+            created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            used_by INTEGER REFERENCES users(id),
+            used_at TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_invite_codes_created
+            ON invite_codes(created_at DESC);
 
         CREATE TABLE IF NOT EXISTS practice_sessions (
             id INTEGER PRIMARY KEY,
@@ -155,6 +174,26 @@ def ensure_user_db() -> None:
             ON wrong_book(user_id, resolved, last_wrong_at DESC);
         """
     )
+    user_columns = {
+        row["name"]
+        for row in connection.execute("PRAGMA table_info(users)").fetchall()
+    }
+    if "is_admin" not in user_columns:
+        connection.execute(
+            "ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0"
+        )
+    admin_count = connection.execute(
+        "SELECT COUNT(*) FROM users WHERE is_admin = 1"
+    ).fetchone()[0]
+    if admin_count == 0:
+        first_user = connection.execute(
+            "SELECT id FROM users ORDER BY id LIMIT 1"
+        ).fetchone()
+        if first_user:
+            connection.execute(
+                "UPDATE users SET is_admin = 1 WHERE id = ?",
+                (first_user["id"],),
+            )
     columns = {
         row["name"]
         for row in connection.execute("PRAGMA table_info(attempts)").fetchall()
@@ -260,7 +299,7 @@ def resolve_user(request: Request) -> dict | None:
     try:
         row = connection.execute(
             """
-            SELECT u.id, u.username, s.expires_at
+            SELECT u.id, u.username, u.is_admin, s.expires_at
             FROM auth_sessions s
             JOIN users u ON u.id = s.user_id
             WHERE s.token_hash = ?
@@ -276,7 +315,11 @@ def resolve_user(request: Request) -> dict | None:
             )
             connection.commit()
             return None
-        return {"id": row["id"], "username": row["username"]}
+        return {
+            "id": row["id"],
+            "username": row["username"],
+            "is_admin": bool(row["is_admin"]),
+        }
     finally:
         connection.close()
 
@@ -590,16 +633,23 @@ def auth_status(request: Request) -> dict:
     connection = user_connection()
     try:
         user_count = connection.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        active_invites = connection.execute(
+            """
+            SELECT COUNT(*) FROM invite_codes
+            WHERE used_at IS NULL AND expires_at > ?
+            """,
+            (utc_now(),),
+        ).fetchone()[0]
     finally:
         connection.close()
     current = resolve_user(request)
-    invite_enabled = bool(os.environ.get("KAOGONG_INVITE_CODE"))
     setup_enabled = bool(os.environ.get("KAOGONG_SETUP_TOKEN"))
     return {
         "initialized": user_count > 0,
-        "registration_open": user_count == 0 or invite_enabled,
+        "registration_open": user_count == 0 or active_invites > 0,
         "invite_required": user_count > 0,
         "setup_required": user_count == 0 and setup_enabled,
+        "active_invites": active_invites,
         "authenticated": current is not None,
         "user": current,
     }
@@ -608,33 +658,70 @@ def auth_status(request: Request) -> dict:
 @app.post("/api/auth/register")
 def register(payload: Registration, request: Request) -> JSONResponse:
     connection = user_connection()
+    connection.row_factory = sqlite3.Row
     try:
+        connection.execute("BEGIN IMMEDIATE")
         user_count = connection.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-        invite = os.environ.get("KAOGONG_INVITE_CODE", "")
         setup_token = os.environ.get("KAOGONG_SETUP_TOKEN", "")
-        if user_count == 0 and setup_token:
-            if not hmac.compare_digest(payload.invite_code, setup_token):
+        invite_row = None
+        if user_count == 0:
+            if setup_token and not hmac.compare_digest(
+                payload.invite_code, setup_token
+            ):
                 raise HTTPException(status_code=403, detail="需要有效的首次部署码")
-        if user_count > 0:
-            if not invite or not hmac.compare_digest(payload.invite_code, invite):
+            is_admin = 1
+        else:
+            invite_row = connection.execute(
+                """
+                SELECT id FROM invite_codes
+                WHERE code_hash = ? AND used_at IS NULL AND expires_at > ?
+                """,
+                (session_hash(payload.invite_code.strip()), utc_now()),
+            ).fetchone()
+            if invite_row is None:
                 raise HTTPException(status_code=403, detail="注册需要有效邀请码")
+            is_admin = 0
         try:
             cursor = connection.execute(
                 """
-                INSERT INTO users(username, password_hash, created_at)
-                VALUES (?, ?, ?)
+                INSERT INTO users(username, password_hash, is_admin, created_at)
+                VALUES (?, ?, ?, ?)
                 """,
-                (payload.username.strip(), password_hash(payload.password), utc_now()),
+                (
+                    payload.username.strip(),
+                    password_hash(payload.password),
+                    is_admin,
+                    utc_now(),
+                ),
             )
+            user_id = int(cursor.lastrowid)
+            if invite_row is not None:
+                connection.execute(
+                    """
+                    UPDATE invite_codes
+                    SET used_by = ?, used_at = ?
+                    WHERE id = ?
+                    """,
+                    (user_id, utc_now(), invite_row["id"]),
+                )
             connection.commit()
         except sqlite3.IntegrityError as error:
+            connection.rollback()
             raise HTTPException(status_code=409, detail="用户名已存在") from error
-        user_id = int(cursor.lastrowid)
+    except HTTPException:
+        connection.rollback()
+        raise
     finally:
         connection.close()
     token, _ = create_auth_session(user_id)
     response = JSONResponse(
-        {"user": {"id": user_id, "username": payload.username.strip()}}
+        {
+            "user": {
+                "id": user_id,
+                "username": payload.username.strip(),
+                "is_admin": bool(is_admin),
+            }
+        }
     )
     set_session_cookie(response, request, token)
     return response
@@ -648,7 +735,7 @@ def login(payload: Credentials, request: Request) -> JSONResponse:
     connection = user_connection()
     try:
         row = connection.execute(
-            "SELECT id, username, password_hash FROM users WHERE username = ?",
+            "SELECT id, username, password_hash, is_admin FROM users WHERE username = ?",
             (payload.username.strip(),),
         ).fetchone()
     finally:
@@ -658,7 +745,15 @@ def login(payload: Credentials, request: Request) -> JSONResponse:
         raise HTTPException(status_code=401, detail="用户名或密码错误")
     LOGIN_FAILURES.pop(key, None)
     token, _ = create_auth_session(row["id"])
-    response = JSONResponse({"user": {"id": row["id"], "username": row["username"]}})
+    response = JSONResponse(
+        {
+            "user": {
+                "id": row["id"],
+                "username": row["username"],
+                "is_admin": bool(row["is_admin"]),
+            }
+        }
+    )
     set_session_cookie(response, request, token)
     return response
 
@@ -684,6 +779,128 @@ def logout(request: Request) -> JSONResponse:
 @app.get("/api/auth/me")
 def me(request: Request) -> dict:
     return request.state.user
+
+
+def require_admin(request: Request) -> None:
+    if not request.state.user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="需要管理员权限")
+
+
+@app.get("/api/admin/users")
+def admin_users(request: Request) -> list[dict]:
+    require_admin(request)
+    connection = user_connection()
+    try:
+        rows = connection.execute(
+            """
+            SELECT u.id, u.username, u.is_admin, u.created_at,
+                   (SELECT COUNT(*) FROM attempts a WHERE a.user_id = u.id)
+                       AS attempt_count,
+                   (SELECT MAX(answered_at) FROM attempts a WHERE a.user_id = u.id)
+                       AS last_active_at,
+                   (SELECT COUNT(*) FROM wrong_book w
+                    WHERE w.user_id = u.id AND w.resolved = 0)
+                       AS wrong_book_count
+            FROM users u
+            ORDER BY u.id
+            """
+        ).fetchall()
+        return [
+            {
+                **dict(row),
+                "is_admin": bool(row["is_admin"]),
+            }
+            for row in rows
+        ]
+    finally:
+        connection.close()
+
+
+@app.get("/api/admin/invites")
+def admin_invites(request: Request) -> list[dict]:
+    require_admin(request)
+    connection = user_connection()
+    try:
+        rows = connection.execute(
+            """
+            SELECT i.id, i.code_prefix, i.created_at, i.expires_at, i.used_at,
+                   creator.username AS created_by_name,
+                   used.username AS used_by_name
+            FROM invite_codes i
+            JOIN users creator ON creator.id = i.created_by
+            LEFT JOIN users used ON used.id = i.used_by
+            ORDER BY i.id DESC
+            LIMIT 50
+            """
+        ).fetchall()
+        now = datetime.now(timezone.utc)
+        result = []
+        for row in rows:
+            if row["used_at"]:
+                status = "used"
+            elif datetime.fromisoformat(row["expires_at"]) <= now:
+                status = "expired"
+            else:
+                status = "active"
+            result.append({**dict(row), "status": status})
+        return result
+    finally:
+        connection.close()
+
+
+@app.post("/api/admin/invites")
+def create_invite(payload: InviteCreateRequest, request: Request) -> dict:
+    require_admin(request)
+    code = f"kg_{secrets.token_urlsafe(18)}"
+    now = datetime.now(timezone.utc)
+    expires_at = (now + timedelta(days=payload.expires_days)).isoformat(
+        timespec="seconds"
+    )
+    connection = user_connection()
+    try:
+        cursor = connection.execute(
+            """
+            INSERT INTO invite_codes
+                (code_hash, code_prefix, created_by, created_at, expires_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                session_hash(code),
+                code[:10],
+                request.state.user["id"],
+                now.isoformat(timespec="seconds"),
+                expires_at,
+            ),
+        )
+        connection.commit()
+        return {
+            "id": int(cursor.lastrowid),
+            "code": code,
+            "expires_at": expires_at,
+        }
+    finally:
+        connection.close()
+
+
+@app.post("/api/admin/invites/{invite_id}/revoke")
+def revoke_invite(invite_id: int, request: Request) -> dict:
+    require_admin(request)
+    connection = user_connection()
+    try:
+        cursor = connection.execute(
+            """
+            UPDATE invite_codes
+            SET expires_at = ?
+            WHERE id = ? AND used_at IS NULL
+            """,
+            (utc_now(), invite_id),
+        )
+        connection.commit()
+        if cursor.rowcount == 0:
+            raise HTTPException(status_code=404, detail="邀请码不存在或已经使用")
+        return {"ok": True}
+    finally:
+        connection.close()
 
 
 @app.get("/api/filters")

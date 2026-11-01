@@ -237,9 +237,9 @@ button:disabled { cursor: not-allowed; opacity: .55; transform: none !important;
 .auth-card .ghost { width: 100%; margin-top: 8px; }
 .form-error { min-height: 20px; margin: 12px 0 0; color: var(--red); font-size: 13px; }
 
-.view-switch {
+ .view-switch {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 4px;
   margin: 12px 0 18px;
 }
@@ -331,4 +331,53 @@ button:disabled { cursor: not-allowed; opacity: .55; transform: none !important;
   .paper-list { padding: 20px; }
   .section-heading { align-items: start; flex-direction: column; }
   .paper-actions button { flex: 1; }
+}
+
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.admin-block {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 18px;
+  background: #fffdf9;
+}
+.admin-block h3 { margin: 0 0 12px; }
+.invite-form { display: flex; gap: 9px; flex-wrap: wrap; }
+.invite-form select { flex: 1; min-width: 130px; }
+.invite-created {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid #bddbc8;
+  background: #edf7f0;
+}
+.invite-created code { overflow-wrap: anywhere; font-size: 13px; }
+.admin-list { display: grid; gap: 8px; }
+.admin-row {
+  display: grid;
+  grid-template-columns: minmax(100px, 1.1fr) minmax(100px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(217, 210, 193, .65);
+  font-size: 13px;
+}
+.admin-row:last-child { border-bottom: 0; }
+.admin-row small { color: var(--muted); }
+.invite-status { border-radius: 999px; padding: 3px 8px; font-size: 11px; background: #eee7da; }
+.invite-status.active { color: var(--green); background: #e7f5eb; }
+.invite-status.used { color: var(--muted); }
+.invite-status.expired { color: var(--red); background: #fff0ec; }
+@media (max-width: 760px) {
+  .admin-grid { grid-template-columns: 1fr; }
+  .admin-row { grid-template-columns: 1fr; }
 }

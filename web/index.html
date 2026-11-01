@@ -56,6 +56,7 @@
           <button class="active" data-view="random">随机练习</button>
           <button data-view="papers">整卷</button>
           <button data-view="wrongbook">错题本</button>
+          <button class="hidden" data-view="admin" id="admin-view-button">用户管理</button>
         </div>
 
         <div id="filters">
@@ -105,6 +106,43 @@
             <span id="wrongbook-count" class="muted"></span>
           </div>
           <div id="wrongbook-items" class="paper-grid"></div>
+        </section>
+
+        <section id="admin-panel" class="paper-list hidden">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">ADMIN</p>
+              <h2>用户管理</h2>
+            </div>
+            <span id="admin-user-count" class="muted"></span>
+          </div>
+          <div class="admin-grid">
+            <div class="admin-block">
+              <h3>生成邀请码</h3>
+              <p class="muted">邀请码只能成功注册一次，默认 7 天过期。</p>
+              <form id="invite-form" class="invite-form">
+                <select id="invite-expiry">
+                  <option value="1">1 天有效</option>
+                  <option value="7" selected>7 天有效</option>
+                  <option value="30">30 天有效</option>
+                </select>
+                <button type="submit" class="primary">生成邀请码</button>
+              </form>
+              <div id="invite-created" class="invite-created hidden">
+                <span>新邀请码：</span>
+                <code id="invite-created-code"></code>
+                <button type="button" class="secondary" id="copy-invite">复制</button>
+              </div>
+            </div>
+            <div class="admin-block">
+              <h3>注册用户</h3>
+              <div id="admin-users" class="admin-list"></div>
+            </div>
+          </div>
+          <div class="admin-block">
+            <h3>最近邀请码</h3>
+            <div id="admin-invites" class="admin-list"></div>
+          </div>
         </section>
 
         <article id="question-card" class="question-card hidden">
